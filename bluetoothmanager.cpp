@@ -1,8 +1,15 @@
-
-
 #include "bluetoothmanager.h"
 
-int BluetoothManager::ListBTService(BT_ADDR pb){
+union {
+    CHAR buf[ 5000 ];
+    SOCKADDR_BTH _Unused_;  // ensure proper alignment
+} butuh;
+
+BluetoothManager::BluetoothManager(){
+    this->BTDeviceList = new QList<QBluetoothHostInfo>;
+}
+
+int BluetoothManager::ListBTService(BT_ADDR BluetoothAddress){
     int iResult = 0, iRet;
     HRESULT CoInitRet;
     BLOB blob;
@@ -33,7 +40,7 @@ int BluetoothManager::ListBTService(BT_ADDR pb){
     blob.pBlobData = ( BYTE* )&RBlob;
     // This structure defines the Bluetooth socket address
     memset( &sa, 0, sizeof( sa ) );
-    sa.btAddr = pb;
+    sa.btAddr = BluetoothAddress;
     sa.addressFamily = AF_BTH;
     // Do some verification
     printf( "\n  sa.btAddr: %012X\n", sa.btAddr );
@@ -96,9 +103,14 @@ int BluetoothManager::ListBTService(BT_ADDR pb){
 // Function: FindingBtDevices
 // Purpose: Performs a device inquiry displays the device name in a console
 //------------------------------------------------------------------------
-bool BluetoothManager::ScanBTDevice()
+int BluetoothManager::ScanBTDevice()
 {
-    WSAQUERYSET wsaq;
+    WSADATA wsd;
+    BOOL retVal;
+    if ( WSAStartup( MAKEWORD( 2, 2 ), &wsd ) != 0 )
+        printf( "WSAStartup() failed with error code %ld\n", WSAGetLastError() );
+
+    WSAQUERYSET WSAQuerySet;
     HANDLE hLookup;
     LPWSAQUERYSET pwsaResults;
     DWORD dwSize;
@@ -108,18 +120,17 @@ bool BluetoothManager::ScanBTDevice()
     int nPssRet;
     pwsaResults = ( LPWSAQUERYSET )butuh.buf;
     dwSize = sizeof( butuh.buf );
-    ZeroMemory( &wsaq, sizeof( wsaq ) );
-    wsaq.dwSize = sizeof( wsaq );
-    wsaq.dwNameSpace = NS_BTH;
-    wsaq.lpcsaBuffer = NULL;
+    ZeroMemory( &WSAQuerySet, sizeof( WSAQuerySet ) );
+    WSAQuerySet.dwSize = sizeof( WSAQuerySet );
+    WSAQuerySet.dwNameSpace = NS_BTH;
+    WSAQuerySet.lpcsaBuffer = NULL;
     printf( "\n" );
-    if ( WSALookupServiceBegin( &wsaq, LUP_CONTAINERS, &hLookup ) == SOCKET_ERROR )
-    {
-        printf( "FindingBtDevices(): WSALookupServiceBegin() failed %d\r\n", WSAGetLastError() );
+    if ( WSALookupServiceBegin( &WSAQuerySet, LUP_CONTAINERS, &hLookup ) == SOCKET_ERROR ){
+        printf( "ScanBTDevice: WSALookupServiceBegin() failed %d\r\n", WSAGetLastError() );
         return false;
     }
     else
-        printf( "FindingBtDevices(): WSALookupServiceBegin() pretty damn OK!\n" );
+        printf( "ScanBTDevice: WSALookupServiceBegin() pretty damn OK!\n" );
     ZeroMemory( pwsaResults, sizeof( WSAQUERYSET ) );
     pwsaResults->dwSize = sizeof( WSAQUERYSET );
     pwsaResults->dwNameSpace = NS_BTH;
@@ -145,19 +156,7 @@ bool BluetoothManager::ScanBTDevice()
     if ( WSALookupServiceEnd( hLookup ) != 0 )
         printf( "FindingBtDevices(): WSALookupServiceEnd(hLookup) failed with error code %ld\n", WSAGetLastError() );
 
-    return TRUE;
-}
-
-int _ScanBTDevice(){
-    WSADATA wsd;
-    BOOL retVal;
-    if ( WSAStartup( MAKEWORD( 2, 2 ), &wsd ) != 0 )
-        printf( "WSAStartup() failed with error code %ld\n", WSAGetLastError() );
-
-
-
-
-    if ( FindingBtDevices() == FALSE )
+    if ( ScanBTDevice() == FALSE )
         printf( "\nNo bulutooth device in range found!\n" );
     else
         printf( "\nFound some bluetooth devices around!\n" );
