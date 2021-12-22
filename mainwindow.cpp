@@ -1,6 +1,6 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
-#include "utils_qt.h"
+#include "QUtils.h"
 #include <QDebug>
 
 MainWindow::MainWindow(QWidget *parent) :
@@ -9,30 +9,22 @@ MainWindow::MainWindow(QWidget *parent) :
 {
     ui->setupUi(this); //必须在其他ui界面设置之前执行
 
-    QUtils::SetBackgroundColor(this, Qt::GlobalColor::white);
+    //QUtils::SetBackgroundColor(this, Qt::GlobalColor::white);
 
-    ItemModel = new QStandardItemModel(this);
+    QStringList BTDeviceTableHeaders;
 
-    QStringList strList;
-    strList.append("A");
-    strList.append("B");
-    strList.append("C");
-    strList.append("D");
-    strList.append("E");
-    strList.append("F");
-    strList.append("G");
+    BTDeviceTableHeaders.append("DeviceName");
+    BTDeviceTableHeaders.append("DeviceAddress");
+    BTDeviceTableHeaders.append("ServiceNum");
+    BTDeviceTableHeaders.append("ServiceName");
 
-    int nCount = strList.size();
-    for(int i = 0; i < nCount; i++)
-    {
-        QString string = static_cast<QString>(strList.at(i));
-        QStandardItem *item = new QStandardItem(string);
-        ItemModel->appendRow(item);
-    }
-    ui->DeviceList->setModel(ItemModel);
-    //ui->listView->setFixedSize(200,300);
-
+    BTDeviceTable = new QStandardItemModel();
+    BTDeviceTable->setHorizontalHeaderLabels(BTDeviceTableHeaders);
+    BTDeviceTable->setColumnCount(BTDeviceTableHeaders.count());
+    ui->DeviceList->setModel(this->BTDeviceTable);
     connect(ui->ScanBTDevice, SIGNAL(clicked()), this, SLOT(OnScanButtonClicked()));
+    ui->DeviceList->setEditTriggers(QAbstractItemView::NoEditTriggers); //Make uneditable
+    ui->DeviceList->setColumnWidth(1, 200);
 
 }
 
@@ -44,7 +36,7 @@ void MainWindow::ShowDebug(QString Str){
 
 
 void MainWindow::Init(){
-    connect(BTManager, SIGNAL(ScanFinished(QList<QBluetoothHostInfo>*)), this, SLOT(ShowBTDevice(QList<QBluetoothHostInfo>*)));
+    connect(BTManager, SIGNAL(ScanFinished(QList<BTDeviceInfo>*)), this, SLOT(ShowBTDevice(QList<BTDeviceInfo>*)));
     connect(BTManager, SIGNAL(ShowDebug(QString)), this, SLOT(ShowDebug(QString)));
     BTManager->ScanBTDevice();
 }
@@ -53,33 +45,47 @@ void MainWindow::BindBluetoothManager(BluetoothManager *BTManager){
     this->BTManager = BTManager;
 }
 
-void MainWindow::ShowBTDevice(QList<QBluetoothHostInfo>* BTDeviceList){
-    ui->DeviceList->model()->removeRows(0, ui->DeviceList->model()->rowCount());
+void MainWindow::ShowBTDevice(QList<BTDeviceInfo>* BTDeviceList){
+    while(ui->DeviceList->model()->rowCount() > 0){
+        ui->DeviceList->model()->removeRow(0);
+    }
+    //ui->DeviceList->model()->removeRows(0, ui->DeviceList->model()->rowCount());
     qDebug() << "Showing BT Device";
     QStringList BTDeviceStrList;
     int BTDeviceNum = BTDeviceList->count();
-    for(int i = 0; i < BTDeviceNum; i++){
-        const QBluetoothHostInfo& BTDeviceInfo = BTDeviceList->at(i);
-        QString BTDeviceStr = BTDeviceInfo.name() + ":" + BTDeviceInfo.address().toString();
-        qDebug() << "Showing Device" << BTDeviceStr;
-        BTDeviceStrList.append(BTDeviceStr);
-    }
 
-    BTDeviceStrList.append("AAA");
+    BTDeviceTable->setRowCount(BTDeviceList->count());
+    //BTDeviceTable->setColumnCount(3);
 
-    for(int i = 0; i < BTDeviceStrList.size(); i++)
+    int rowIndex = 0;
+    for(int i = 0; i < BTDeviceNum; i++)
     {
-        //QString string = static_cast<QString>(BTDeviceStrList.at(i));
-        QStandardItem *item = new QStandardItem(BTDeviceStrList.at(i));
-        ItemModel->appendRow(item);
-    }
+        int ServiceNum = BTDeviceList->at(i).ServiceList.count();
+        qDebug() << "ServiceNum:" << ServiceNum;
 
-    ui->DeviceList->setModel(ItemModel);
+        BTDeviceTable->setItem(rowIndex, 0, new QStandardItem(BTDeviceList->at(i).Name));
+        BTDeviceTable->setItem(rowIndex, 1, new QStandardItem(BTDeviceList->at(i).Address.toString()));
+        BTDeviceTable->setItem(rowIndex, 2, new QStandardItem(QString::number(ServiceNum)));
+
+        for(int j=0; j<ServiceNum; j++){
+            BTDeviceTable->setItem(rowIndex, 3, new QStandardItem(BTDeviceList->at(i).ServiceList.at(j).Name));
+            rowIndex += 1;
+        }
+
+        if(ServiceNum==0){
+            rowIndex += 1;
+        }
+        //QString string = static_cast<QString>(BTDeviceStrList.at(i));
+        //QStandardItem *item = new QStandardItem(BTDeviceStrList.at(i));
+        //BTDeviceTable->appendRow(item);
+    }
+    //ui->DeviceList->setModel(BTDeviceTable);
     ui->DeviceList->repaint();
 }
 
 MainWindow::~MainWindow()
 {
+    delete this->BTDeviceTable;
     delete ui;
 }
 
